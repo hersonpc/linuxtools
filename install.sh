@@ -132,7 +132,8 @@ find_tools() {
             
             if [ -f "$script_path" ] && [ -x "$script_path" ]; then
                 tools+=("$tool_name:$script_path")
-                print_info "Encontrada ferramenta: $tool_name"
+                # Envia mensagem para stderr para não interferir na captura
+                print_info "Encontrada ferramenta: $tool_name" >&2
             fi
         fi
     done
