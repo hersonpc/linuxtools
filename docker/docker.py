@@ -336,8 +336,8 @@ def stop_container_interactive(container_id, container_name):
             choices,
             title=f"Parar container {container_name} ({container_id[:12]})?",
             menu_cursor="=> ",
-            menu_cursor_style=("fg_red", "bold"),
-            menu_highlight_style=("bg_red", "fg_white"),
+            menu_cursor_style=("red", "bold"),
+            menu_highlight_style=("red",),
             cycle_cursor=True,
             clear_screen=False
         )
@@ -392,10 +392,13 @@ def logs_interactive_mode():
         console.print(table)
         console.print()
         
-        # Create choices for simple-term-menu
+        # Create choices for simple-term-menu (shorter format)
         choices = []
         for container in containers:
-            choice = f"{container['name']} ({container['id'][:12]}) - {container['image']}"
+            # Shorter format: Name (ID) - Image
+            container_name_short = container['name'][:20] + "..." if len(container['name']) > 20 else container['name']
+            image_short = container['image'][:30] + "..." if len(container['image']) > 30 else container['image']
+            choice = f"{container_name_short} ({container['id'][:12]}) - {image_short}"
             choices.append(choice)
         
         choices.append("Voltar ao menu principal")
@@ -405,10 +408,11 @@ def logs_interactive_mode():
             choices,
             title="Selecione um container para logs:",
             menu_cursor="=> ",
-            menu_cursor_style=("fg_green", "bold"),
-            menu_highlight_style=("bg_green", "fg_black"),
+            menu_cursor_style=("green", "bold"),
+            menu_highlight_style=("green",),
             cycle_cursor=True,
-            clear_screen=False
+            clear_screen=False,
+            show_search_hint=True
         )
         
         menu_entry_index = terminal_menu.show()
@@ -448,10 +452,12 @@ def ports_interactive_mode():
             console.print(ports_table)
             console.print()
             
-            # Create choices for simple-term-menu
+            # Create choices for simple-term-menu (shorter format)
             choices = []
             for mapping in port_mappings:
-                choice = f":{mapping['ports_display']} -> {mapping['container_name']} ({mapping['container_id']})"
+                # Shorter format: Port -> Container_name (ID)
+                container_name_short = mapping['container_name'][:25] + "..." if len(mapping['container_name']) > 25 else mapping['container_name']
+                choice = f":{mapping['ports_display']} -> {container_name_short} ({mapping['container_id']})"
                 choices.append(choice)
             
             choices.append("Voltar ao menu principal")
@@ -461,10 +467,11 @@ def ports_interactive_mode():
                 choices,
                 title="Selecione um container:",
                 menu_cursor="=> ",
-                menu_cursor_style=("fg_red", "bold"),
-                menu_highlight_style=("bg_red", "fg_yellow"),
+                menu_cursor_style=("red", "bold"),
+                menu_highlight_style=("red",),
                 cycle_cursor=True,
-                clear_screen=False
+                clear_screen=False,
+                show_search_hint=True
             )
             
             menu_entry_index = terminal_menu.show()
@@ -481,6 +488,7 @@ def ports_interactive_mode():
             # Find selected container by index
             if menu_entry_index < len(port_mappings):
                 selected_container = port_mappings[menu_entry_index]
+                console.print(f"[green]Container selecionado: {selected_container['container_name']}[/green]")
                 # Container actions menu
                 container_menu(selected_container)
             
@@ -512,8 +520,8 @@ def container_menu(container_info):
                 actions,
                 title="Escolha uma ação:",
                 menu_cursor="=> ",
-                menu_cursor_style=("fg_blue", "bold"),
-                menu_highlight_style=("bg_blue", "fg_white"),
+                menu_cursor_style=("blue", "bold"),
+                menu_highlight_style=("blue",),
                 cycle_cursor=True,
                 clear_screen=False
             )
