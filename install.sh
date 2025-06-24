@@ -119,82 +119,6 @@ check_sudo() {
     fi
 }
 
-# Verifica e instala uv
-install_uv() {
-    if command -v uv >/dev/null 2>&1; then
-        print_success "uv já está instalado: $(uv --version)"
-        return 0
-    fi
-    
-    print_warning "uv não encontrado"
-    if ask_yes_no "Deseja instalar o uv (gerenciador de pacotes Python)?"; then
-        print_info "Instalando uv..."
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        
-        # Adiciona ao PATH se necessário
-        if ! command -v uv >/dev/null 2>&1; then
-            export PATH="$HOME/.local/bin:$PATH"
-            if command -v uv >/dev/null 2>&1; then
-                print_success "uv instalado com sucesso"
-                print_info "Adicione ~/.local/bin ao seu PATH permanentemente:"
-                print_info "echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc"
-            else
-                print_error "Falha na instalação do uv"
-                return 1
-            fi
-        else
-            print_success "uv instalado com sucesso"
-        fi
-    else
-        print_warning "uv não será instalado. Algumas ferramentas podem não funcionar."
-        return 1
-    fi
-}
-
-# Verifica e instala gum
-install_gum() {
-    if command -v gum >/dev/null 2>&1; then
-        print_success "gum já está instalado: $(gum --version)"
-        return 0
-    fi
-    
-    print_warning "gum não encontrado"
-    if ask_yes_no "Deseja instalar o gum (ferramenta para interfaces interativas)?"; then
-        print_info "Instalando gum..."
-        
-        # Instala gum no Ubuntu/Debian
-        if command -v apt-get >/dev/null 2>&1; then
-            # Debian/Ubuntu
-            sudo mkdir -p /etc/apt/keyrings
-            curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg
-            echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | sudo tee /etc/apt/sources.list.d/charm.list
-            sudo apt update && sudo apt install gum -y
-        elif command -v yum >/dev/null 2>&1; then
-            # RHEL/CentOS/Fedora
-            echo '[charm]
-name=Charm
-baseurl=https://repo.charm.sh/yum/
-enabled=1
-gpgcheck=1
-gpgkey=https://repo.charm.sh/yum/gpg.key' | sudo tee /etc/yum.repos.d/charm.repo
-            sudo yum install gum -y
-        else
-            print_warning "Gerenciador de pacotes não suportado"
-            print_info "Instale gum manualmente: https://github.com/charmbracelet/gum#installation"
-            return 1
-        fi
-        
-        if command -v gum >/dev/null 2>&1; then
-            print_success "gum instalado com sucesso"
-        else
-            print_error "Falha na instalação do gum"
-            return 1
-        fi
-    else
-        print_warning "gum não será instalado. Menus interativos não funcionarão."
-        return 1
-    fi
-}
 
 # Encontra todas as ferramentas disponíveis
 find_tools() {
@@ -272,7 +196,103 @@ main() {
     print_info "=== Verificando dependências ==="
     
     # Instala dependências (executa como usuário original, não root)
-    sudo -u "$SUDO_USER" bash -c "$(declare -f print_info print_success print_warning print_error ask_yes_no install_uv install_gum); install_uv; install_gum"
+    sudo -u "$SUDO_USER" HOME="/home/$SUDO_USER" bash -c "
+        # Re-define funções no contexto do usuário
+        print_info() { echo -e \"\033[0;34m[INFO]\033[0m \$1\"; }
+        print_success() { echo -e \"\033[0;32m[SUCCESS]\033[0m \$1\"; }
+        print_warning() { echo -e \"\033[1;33m[WARNING]\033[0m \$1\"; }
+        print_error() { echo -e \"\033[0;31m[ERROR]\033[0m \$1\"; }
+        ask_yes_no() {
+            while true; do
+                read -p \"\$1 (y/n): \" yn
+                case \$yn in
+                    [Yy]* ) return 0;;
+                    [Nn]* ) return 1;;
+                    * ) echo \"Por favor responda sim (y) ou não (n).\";;
+                esac
+            done
+        }
+        
+        # Verifica e instala uv
+        install_uv() {
+            # Verifica tanto no PATH quanto em ~/.local/bin
+            if command -v uv >/dev/null 2>&1 || [ -f ~/.local/bin/uv ]; then
+                if command -v uv >/dev/null 2>&1; then
+                    print_success \"uv já está instalado: \$(uv --version)\"
+                else
+                    print_success \"uv encontrado em ~/.local/bin\"
+                fi
+                return 0
+            fi
+            
+            print_warning \"uv não encontrado\"
+            if ask_yes_no \"Deseja instalar o uv (gerenciador de pacotes Python)?\"; then
+                print_info \"Instalando uv...\"
+                curl -LsSf https://astral.sh/uv/install.sh | sh
+                
+                # Adiciona ao PATH se necessário
+                export PATH=\"\$HOME/.local/bin:\$PATH\"
+                if command -v uv >/dev/null 2>&1; then
+                    print_success \"uv instalado com sucesso\"
+                    print_info \"Adicione ~/.local/bin ao seu PATH permanentemente:\"
+                    print_info \"echo 'export PATH=\\\"\\\$HOME/.local/bin:\\\$PATH\\\"' >> ~/.bashrc\"
+                else
+                    print_error \"Falha na instalação do uv\"
+                    return 1
+                fi
+            else
+                print_warning \"uv não será instalado. Algumas ferramentas podem não funcionar.\"
+                return 1
+            fi
+        }
+        
+        # Verifica e instala gum
+        install_gum() {
+            if command -v gum >/dev/null 2>&1; then
+                print_success \"gum já está instalado: \$(gum --version)\"
+                return 0
+            fi
+            
+            print_warning \"gum não encontrado\"
+            if ask_yes_no \"Deseja instalar o gum (ferramenta para interfaces interativas)?\"; then
+                print_info \"Instalando gum...\"
+                
+                # Instala gum no Ubuntu/Debian
+                if command -v apt-get >/dev/null 2>&1; then
+                    sudo mkdir -p /etc/apt/keyrings
+                    curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg
+                    echo \"deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *\" | sudo tee /etc/apt/sources.list.d/charm.list
+                    sudo apt update && sudo apt install gum -y
+                elif command -v yum >/dev/null 2>&1; then
+                    echo '[charm]
+name=Charm
+baseurl=https://repo.charm.sh/yum/
+enabled=1
+gpgcheck=1
+gpgkey=https://repo.charm.sh/yum/gpg.key' | sudo tee /etc/yum.repos.d/charm.repo
+                    sudo yum install gum -y
+                else
+                    print_warning \"Gerenciador de pacotes não suportado\"
+                    print_info \"Instale gum manualmente: https://github.com/charmbracelet/gum#installation\"
+                    return 1
+                fi
+                
+                if command -v gum >/dev/null 2>&1; then
+                    print_success \"gum instalado com sucesso\"
+                else
+                    print_error \"Falha na instalação do gum\"
+                    return 1
+                fi
+            else
+                print_warning \"gum não será instalado. Menus interativos não funcionarão.\"
+                return 1
+            fi
+        }
+        
+        # Executa as instalações
+        install_uv
+        install_gum
+    "
     
     echo
     print_info "=== Instalando ferramentas ==="
