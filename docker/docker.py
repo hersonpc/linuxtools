@@ -50,6 +50,36 @@ def format_date(date_str):
         return date_str  # Return original if parsing fails
 
 
+def parse_ports(port_string):
+    """Parse Docker port string and extract host port mappings"""
+    ports = []
+    if not port_string or port_string.strip() == "":
+        return ports
+    
+    # Split multiple port mappings
+    port_parts = port_string.split(", ")
+    
+    for part in port_parts:
+        part = part.strip()
+        # Match patterns like: 0.0.0.0:8080->80/tcp or [::]:8080->80/tcp
+        match = re.search(r'(?:0\.0\.0\.0|::|\[::\]):(\d+)->', part)
+        if match:
+            host_port = int(match.group(1))
+            # Extract container port and protocol
+            container_match = re.search(r'->(\d+)/(\w+)', part)
+            container_port = container_match.group(1) if container_match else "unknown"
+            protocol = container_match.group(2) if container_match else "tcp"
+            
+            ports.append({
+                'host_port': host_port,
+                'container_port': container_port,
+                'protocol': protocol,
+                'mapping': part
+            })
+    
+    return sorted(ports, key=lambda x: x['host_port'])
+
+
 def create_ps_table():
     """Create table for docker ps"""
     table = Table(
@@ -76,6 +106,68 @@ def create_ps_table():
                 table.add_row(parts[0], parts[1], created_formatted, parts[3], "")
 
     return table
+
+
+def create_ports_table():
+    """Create table for exposed ports"""
+    table = Table(
+        title="Exposed Ports", show_header=True, header_style="bold magenta"
+    )
+    table.add_column("HOST PORT", style="cyan", no_wrap=True)
+    table.add_column("CONTAINER PORT", style="yellow", no_wrap=True)
+    table.add_column("PROTOCOL", style="blue", no_wrap=True)
+    table.add_column("CONTAINER ID", style="green", no_wrap=True)
+    table.add_column("CONTAINER NAME", style="green")
+    table.add_column("IMAGE", style="white")
+    table.add_column("STATUS", style="magenta")
+
+    output = run_command(
+        'docker ps --format "{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.Ports}}"'
+    )
+
+    # Collect all port mappings
+    port_mappings = []
+    
+    for line in output.split("\n"):
+        if line.strip():
+            parts = line.split("|")
+            if len(parts) >= 5:
+                container_id = parts[0]
+                container_name = parts[1]
+                image = parts[2]
+                status = parts[3]
+                ports_str = parts[4]
+                
+                # Parse ports for this container
+                ports = parse_ports(ports_str)
+                
+                for port_info in ports:
+                    port_mappings.append({
+                        'host_port': port_info['host_port'],
+                        'container_port': port_info['container_port'],
+                        'protocol': port_info['protocol'],
+                        'container_id': container_id[:12],
+                        'container_name': container_name,
+                        'image': image,
+                        'status': status
+                    })
+    
+    # Sort by host port
+    port_mappings.sort(key=lambda x: x['host_port'])
+    
+    # Add rows to table
+    for mapping in port_mappings:
+        table.add_row(
+            str(mapping['host_port']),
+            mapping['container_port'],
+            mapping['protocol'],
+            mapping['container_id'],
+            mapping['container_name'],
+            mapping['image'],
+            mapping['status']
+        )
+    
+    return table, port_mappings
 
 
 def create_network_table():
@@ -136,6 +228,230 @@ def watch_containers():
         console.print("\n[yellow]Monitor interrompido[/yellow]")
 
 
+def get_container_details(container_id):
+    """Get detailed information about a container"""
+    try:
+        # Get container inspect data
+        inspect_output = run_command(f"docker inspect {container_id}")
+        
+        # Get basic info with docker ps
+        ps_output = run_command(
+            f'docker ps --filter "id={container_id}" --format "{{{{.ID}}}}|{{{{.Names}}}}|{{{{.Image}}}}|{{{{.Status}}}}|{{{{.CreatedAt}}}}|{{{{.Ports}}}}"'
+        )
+        
+        if not ps_output:
+            return None
+            
+        parts = ps_output.split("|")
+        if len(parts) < 5:
+            return None
+            
+        details = {
+            'id': parts[0],
+            'name': parts[1],
+            'image': parts[2],
+            'status': parts[3],
+            'created': format_date(parts[4]) if len(parts) > 4 else "Unknown",
+            'ports': parts[5] if len(parts) > 5 else "None"
+        }
+        
+        # Get network info
+        network_output = run_command(
+            f'docker inspect {container_id} --format "{{{{range .NetworkSettings.Networks}}}}{{{{.NetworkMode}}}} {{{{.IPAddress}}}} {{{{end}}}}"'
+        )
+        details['networks'] = network_output.strip() if network_output else "Unknown"
+        
+        # Get mounts/volumes
+        mounts_output = run_command(
+            f'docker inspect {container_id} --format "{{{{range .Mounts}}}}{{{{.Source}}}}:{{{{.Destination}}}} {{{{end}}}}"'
+        )
+        details['mounts'] = mounts_output.strip() if mounts_output else "None"
+        
+        return details
+        
+    except Exception as e:
+        console.print(f"[red]Erro ao obter detalhes: {e}[/red]")
+        return None
+
+
+def show_container_logs(container_id):
+    """Show container logs with real-time following"""
+    try:
+        console.print(f"[green]Logs do container {container_id[:12]}...[/green]")
+        console.print("[dim]Pressione Ctrl+C para parar[/dim]\n")
+        
+        # Use subprocess with real-time output
+        process = subprocess.Popen(
+            ["docker", "logs", "--tail", "50", "--follow", container_id],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            universal_newlines=True
+        )
+        
+        try:
+            for line in iter(process.stdout.readline, ''):
+                if line:
+                    print(line.rstrip())
+        except KeyboardInterrupt:
+            process.terminate()
+            console.print("\n[yellow]Logs interrompidos[/yellow]")
+        finally:
+            process.terminate()
+            
+    except Exception as e:
+        console.print(f"[red]Erro ao exibir logs: {e}[/red]")
+
+
+def stop_container_interactive(container_id, container_name):
+    """Stop container with confirmation using gum"""
+    try:
+        # Use gum confirm for confirmation
+        confirm_cmd = f'gum confirm "Parar container {container_name} ({container_id[:12]})?"'
+        result = subprocess.run(confirm_cmd, shell=True)
+        
+        if result.returncode == 0:  # User confirmed
+            console.print(f"[yellow]Parando container {container_name}...[/yellow]")
+            stop_output = run_command(f"docker stop {container_id}")
+            console.print(f"[green]Container {container_name} parado com sucesso[/green]")
+            return True
+        else:
+            console.print("[blue]Operação cancelada[/blue]")
+            return False
+            
+    except Exception as e:
+        console.print(f"[red]Erro ao parar container: {e}[/red]")
+        return False
+
+
+def ports_interactive_mode():
+    """Interactive mode for port management"""
+    try:
+        while True:
+            # Get ports table and data
+            ports_table, port_mappings = create_ports_table()
+            
+            if not port_mappings:
+                console.print("[yellow]Nenhuma porta exposta encontrada[/yellow]")
+                return
+            
+            # Show ports table
+            console.print(ports_table)
+            console.print()
+            
+            # Create choices for gum
+            choices = []
+            for mapping in port_mappings:
+                choice = f":{mapping['host_port']} -> {mapping['container_name']} ({mapping['image']})"
+                choices.append(choice)
+            
+            choices.append("Voltar ao menu principal")
+            
+            # Use gum choose to select container
+            choices_str = '\n'.join(f'"{choice}"' for choice in choices)
+            gum_cmd = f'echo -e "{choices_str}" | gum choose'
+            
+            result = subprocess.run(gum_cmd, shell=True, capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                break
+                
+            selected = result.stdout.strip()
+            
+            if selected == "Voltar ao menu principal" or not selected:
+                break
+            
+            # Find selected container
+            selected_container = None
+            for mapping in port_mappings:
+                choice = f":{mapping['host_port']} -> {mapping['container_name']} ({mapping['image']})"
+                if choice == selected:
+                    selected_container = mapping
+                    break
+            
+            if not selected_container:
+                continue
+            
+            # Container actions menu
+            container_menu(selected_container)
+            
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Modo interativo cancelado[/yellow]")
+    except Exception as e:
+        console.print(f"[red]Erro no modo interativo: {e}[/red]")
+
+
+def container_menu(container_info):
+    """Show menu for container actions"""
+    try:
+        container_id = container_info['container_id']
+        container_name = container_info['container_name']
+        
+        while True:
+            console.print(f"\n[bold cyan]Container: {container_name} ({container_id})[/bold cyan]")
+            
+            # Action choices
+            actions = [
+                "Ver detalhes completos",
+                "Acompanhar logs",
+                "Parar container",
+                "Voltar à lista de portas"
+            ]
+            
+            actions_str = '\n'.join(f'"{action}"' for action in actions)
+            gum_cmd = f'echo -e "{actions_str}" | gum choose'
+            
+            result = subprocess.run(gum_cmd, shell=True, capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                break
+                
+            selected_action = result.stdout.strip()
+            
+            if selected_action == "Ver detalhes completos":
+                show_container_details_full(container_id)
+                
+            elif selected_action == "Acompanhar logs":
+                show_container_logs(container_id)
+                
+            elif selected_action == "Parar container":
+                stopped = stop_container_interactive(container_id, container_name)
+                if stopped:
+                    console.print("[green]Voltando ao menu principal...[/green]")
+                    return  # Return to main menu since container is stopped
+                    
+            elif selected_action == "Voltar à lista de portas" or not selected_action:
+                break
+                
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Menu do container cancelado[/yellow]")
+    except Exception as e:
+        console.print(f"[red]Erro no menu do container: {e}[/red]")
+
+
+def show_container_details_full(container_id):
+    """Display full container details"""
+    details = get_container_details(container_id)
+    
+    if not details:
+        console.print("[red]Não foi possível obter detalhes do container[/red]")
+        return
+    
+    console.print(f"\n[bold green]Detalhes do Container[/bold green]")
+    console.print(f"[cyan]ID:[/cyan] {details['id']}")
+    console.print(f"[cyan]Nome:[/cyan] {details['name']}")
+    console.print(f"[cyan]Imagem:[/cyan] {details['image']}")
+    console.print(f"[cyan]Status:[/cyan] {details['status']}")
+    console.print(f"[cyan]Criado:[/cyan] {details['created']}")
+    console.print(f"[cyan]Portas:[/cyan] {details['ports']}")
+    console.print(f"[cyan]Redes:[/cyan] {details['networks']}")
+    console.print(f"[cyan]Volumes:[/cyan] {details['mounts']}")
+    
+    console.print("\n[dim]Pressione Enter para continuar...[/dim]")
+    input()
+
+
 def check_docker():
     """Check if Docker is accessible"""
     try:
@@ -164,6 +480,7 @@ def show_help():
     console.print("  [bold]ps[/bold]              Lista containers")
     console.print("  [bold]net, network[/bold]    Lista redes")
     console.print("  [bold]images[/bold]          Lista imagens")
+    console.print("  [bold]ports[/bold]           Visualiza portas expostas")
     console.print("  [bold]watch[/bold]           Monitor contínuo")
     console.print("")
     console.print("[dim]Use docker.sh para menu interativo[/dim]")
@@ -188,6 +505,17 @@ def main():
     elif command == "images":
         table = create_images_table()
         console.print(table)
+    elif command == "ports":
+        # Check if interactive mode is requested
+        if len(sys.argv) > 2 and "--interactive" in " ".join(sys.argv[2:]):
+            ports_interactive_mode()
+        else:
+            # Show ports table only
+            ports_table, port_mappings = create_ports_table()
+            if port_mappings:
+                console.print(ports_table)
+            else:
+                console.print("[yellow]Nenhuma porta exposta encontrada[/yellow]")
     elif command == "watch":
         console.print("[green]Monitor iniciado[/green] [dim](Ctrl+C para parar)[/dim]")
         watch_containers()
