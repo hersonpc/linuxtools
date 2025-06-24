@@ -154,7 +154,7 @@ create_links() {
     
     for tool_info in "${tools[@]}"; do
         IFS=':' read -r tool_name script_path <<< "$tool_info"
-        local link_path="/usr/local/bin/$tool_name"
+        local link_path="/usr/local/bin/${tool_name}.sh"
         
         # Remove link existente se houver
         if [ -L "$link_path" ] || [ -f "$link_path" ]; then
@@ -164,7 +164,7 @@ create_links() {
         
         # Cria novo link simbólico
         ln -s "$script_path" "$link_path"
-        print_success "Link criado: $tool_name -> $script_path"
+        print_success "Link criado: ${tool_name}.sh -> $script_path"
     done
 }
 
@@ -308,7 +308,7 @@ gpgkey=https://repo.charm.sh/yum/gpg.key' | sudo tee /etc/yum.repos.d/charm.repo
     local tools=($(find_tools))
     for tool_info in "${tools[@]}"; do
         IFS=':' read -r tool_name script_path <<< "$tool_info"
-        print_info "  - $tool_name"
+        print_info "  - ${tool_name}.sh"
     done
     
     echo
