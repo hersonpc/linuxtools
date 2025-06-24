@@ -30,6 +30,7 @@ if [ $# -eq 0 ]; then
         "net - Lista redes Docker" \
         "images - Lista imagens Docker" \
         "ports - Visualiza portas expostas" \
+        "logs - Acompanha logs de containers" \
         "watch - Monitora containers continuamente" \
         "Sair")
     
@@ -44,7 +45,10 @@ if [ $# -eq 0 ]; then
             param="images"
             ;;
         "ports - Visualiza portas expostas")
-            param="ports --interactive"
+            param="ports"
+            ;;
+        "logs - Acompanha logs de containers")
+            param="logs"
             ;;
         "watch - Monitora containers continuamente")
             param="watch"

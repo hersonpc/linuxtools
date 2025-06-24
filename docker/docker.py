@@ -51,10 +51,10 @@ def format_date(date_str):
 
 
 def parse_ports(port_string):
-    """Parse Docker port string and extract host port mappings"""
-    ports = []
+    """Parse Docker port string and extract host port mappings, grouping protocols"""
+    ports_dict = {}
     if not port_string or port_string.strip() == "":
-        return ports
+        return []
     
     # Split multiple port mappings
     port_parts = port_string.split(", ")
@@ -70,12 +70,29 @@ def parse_ports(port_string):
             container_port = container_match.group(1) if container_match else "unknown"
             protocol = container_match.group(2) if container_match else "tcp"
             
-            ports.append({
-                'host_port': host_port,
-                'container_port': container_port,
-                'protocol': protocol,
-                'mapping': part
-            })
+            # Create unique key for host_port + container_port combination
+            port_key = f"{host_port}->{container_port}"
+            
+            if port_key not in ports_dict:
+                ports_dict[port_key] = {
+                    'host_port': host_port,
+                    'container_port': container_port,
+                    'protocols': set(),
+                    'mapping': part
+                }
+            
+            ports_dict[port_key]['protocols'].add(protocol)
+    
+    # Convert to list and sort protocols
+    ports = []
+    for port_info in ports_dict.values():
+        protocols_list = sorted(list(port_info['protocols']))
+        ports.append({
+            'host_port': port_info['host_port'],
+            'container_port': port_info['container_port'],
+            'protocol': ', '.join(protocols_list),
+            'mapping': port_info['mapping']
+        })
     
     return sorted(ports, key=lambda x: x['host_port'])
 
@@ -86,10 +103,10 @@ def create_ps_table():
         title="Docker Containers", show_header=True, header_style="bold magenta"
     )
     table.add_column("CONTAINER ID", style="cyan", no_wrap=True)
-    table.add_column("IMAGE", style="green")
-    table.add_column("CREATED", style="yellow")
-    table.add_column("STATUS", style="blue")
-    table.add_column("PORTS", style="white")
+    table.add_column("IMAGE", style="white")
+    table.add_column("CREATED", style="blue")
+    table.add_column("STATUS", style="magenta")
+    table.add_column("PORTS", style="yellow")
 
     output = run_command(
         'docker ps --format "{{.ID}}|{{.Image}}|{{.CreatedAt}}|{{.Status}}|{{.Ports}}"'
@@ -113,10 +130,9 @@ def create_ports_table():
     table = Table(
         title="Exposed Ports", show_header=True, header_style="bold magenta"
     )
-    table.add_column("HOST PORT", style="cyan", no_wrap=True)
-    table.add_column("CONTAINER PORT", style="yellow", no_wrap=True)
+    table.add_column("PORTS", style="yellow", no_wrap=True)
     table.add_column("PROTOCOL", style="blue", no_wrap=True)
-    table.add_column("CONTAINER ID", style="green", no_wrap=True)
+    table.add_column("CONTAINER ID", style="cyan", no_wrap=True)
     table.add_column("CONTAINER NAME", style="green")
     table.add_column("IMAGE", style="white")
     table.add_column("STATUS", style="magenta")
@@ -142,9 +158,15 @@ def create_ports_table():
                 ports = parse_ports(ports_str)
                 
                 for port_info in ports:
+                    # Format ports column: show host port, add container port in parentheses if different
+                    if str(port_info['host_port']) == port_info['container_port']:
+                        ports_display = str(port_info['host_port'])
+                    else:
+                        ports_display = f"{port_info['host_port']} ({port_info['container_port']})"
+                    
                     port_mappings.append({
                         'host_port': port_info['host_port'],
-                        'container_port': port_info['container_port'],
+                        'ports_display': ports_display,
                         'protocol': port_info['protocol'],
                         'container_id': container_id[:12],
                         'container_name': container_name,
@@ -158,8 +180,7 @@ def create_ports_table():
     # Add rows to table
     for mapping in port_mappings:
         table.add_row(
-            str(mapping['host_port']),
-            mapping['container_port'],
+            mapping['ports_display'],
             mapping['protocol'],
             mapping['container_id'],
             mapping['container_name'],
@@ -196,11 +217,11 @@ def create_network_table():
 def create_images_table():
     """Create table for docker images"""
     table = Table(title="Docker Images", show_header=True, header_style="bold magenta")
-    table.add_column("REPOSITORY", style="cyan")
+    table.add_column("REPOSITORY", style="white")
     table.add_column("TAG", style="green")
-    table.add_column("IMAGE ID", style="yellow", no_wrap=True)
+    table.add_column("IMAGE ID", style="cyan", no_wrap=True)
     table.add_column("CREATED", style="blue")
-    table.add_column("SIZE", style="white")
+    table.add_column("SIZE", style="yellow")
 
     output = run_command(
         'docker images --format "{{.Repository}}|{{.Tag}}|{{.ID}}|{{.CreatedAt}}|{{.Size}}"'
@@ -323,6 +344,76 @@ def stop_container_interactive(container_id, container_name):
     except Exception as e:
         console.print(f"[red]Erro ao parar container: {e}[/red]")
         return False
+
+
+def logs_interactive_mode():
+    """Interactive mode for container logs selection"""
+    try:
+        # Get containers table
+        table = create_ps_table()
+        
+        # Get container data
+        output = run_command(
+            'docker ps --format "{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}"'
+        )
+        
+        containers = []
+        for line in output.split("\n"):
+            if line.strip():
+                parts = line.split("|")
+                if len(parts) >= 4:
+                    containers.append({
+                        'id': parts[0],
+                        'name': parts[1],
+                        'image': parts[2],
+                        'status': parts[3]
+                    })
+        
+        if not containers:
+            console.print("[yellow]Nenhum container em execução encontrado[/yellow]")
+            return
+        
+        # Show containers table
+        console.print(table)
+        console.print()
+        
+        # Create choices for gum
+        choices = []
+        for container in containers:
+            choice = f"{container['name']} ({container['id'][:12]}) - {container['image']}"
+            choices.append(choice)
+        
+        choices.append("Voltar ao menu principal")
+        
+        # Use gum choose to select container
+        choices_str = '\n'.join(f'"{choice}"' for choice in choices)
+        gum_cmd = f'echo -e "{choices_str}" | gum choose'
+        
+        result = subprocess.run(gum_cmd, shell=True, capture_output=True, text=True)
+        
+        if result.returncode != 0:
+            return
+            
+        selected = result.stdout.strip()
+        
+        if selected == "Voltar ao menu principal" or not selected:
+            return
+        
+        # Find selected container
+        selected_container = None
+        for container in containers:
+            choice = f"{container['name']} ({container['id'][:12]}) - {container['image']}"
+            if choice == selected:
+                selected_container = container
+                break
+        
+        if selected_container:
+            show_container_logs(selected_container['id'])
+            
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Seleção de logs cancelada[/yellow]")
+    except Exception as e:
+        console.print(f"[red]Erro na seleção de logs: {e}[/red]")
 
 
 def ports_interactive_mode():
@@ -481,6 +572,7 @@ def show_help():
     console.print("  [bold]net, network[/bold]    Lista redes")
     console.print("  [bold]images[/bold]          Lista imagens")
     console.print("  [bold]ports[/bold]           Visualiza portas expostas")
+    console.print("  [bold]logs[/bold]            Acompanha logs de containers")
     console.print("  [bold]watch[/bold]           Monitor contínuo")
     console.print("")
     console.print("[dim]Use docker.sh para menu interativo[/dim]")
@@ -506,16 +598,11 @@ def main():
         table = create_images_table()
         console.print(table)
     elif command == "ports":
-        # Check if interactive mode is requested
-        if len(sys.argv) > 2 and "--interactive" in " ".join(sys.argv[2:]):
-            ports_interactive_mode()
-        else:
-            # Show ports table only
-            ports_table, port_mappings = create_ports_table()
-            if port_mappings:
-                console.print(ports_table)
-            else:
-                console.print("[yellow]Nenhuma porta exposta encontrada[/yellow]")
+        # Always activate interactive mode for ports command
+        ports_interactive_mode()
+    elif command == "logs":
+        # Interactive container logs selection
+        logs_interactive_mode()
     elif command == "watch":
         console.print("[green]Monitor iniciado[/green] [dim](Ctrl+C para parar)[/dim]")
         watch_containers()

@@ -21,23 +21,32 @@ Suite de scripts que oferece interface amigável para gerenciar containers, imag
 ./docker.sh images   # Lista imagens disponíveis
 ./docker.sh net      # Lista redes Docker
 ./docker.sh ports    # Visualiza portas expostas
+./docker.sh logs     # Acompanha logs de containers
 ./docker.sh watch    # Monitora containers continuamente
 ```
 
 ### Gerenciamento de Portas
 
-O comando `ports` oferece uma visão funcional das portas expostas:
+O comando `ports` oferece uma visão funcional das portas expostas com modo interativo:
 
 ```bash
-./docker.sh ports                    # Lista portas em tabela
-./docker.sh ports --interactive      # Modo interativo completo
+./docker.sh ports    # Modo interativo com seleção de containers
 ```
 
-**Modo interativo inclui:**
+**Funcionalidades incluem:**
+- Visualização consolidada de portas (agrupa protocolos)
 - Seleção de containers por porta
 - Detalhes completos do container
 - Logs em tempo real
 - Parar containers com confirmação
+
+### Logs de Containers
+
+O comando `logs` permite acompanhar logs de containers interativamente:
+
+```bash
+./docker.sh logs     # Seleção interativa de container para logs
+```
 
 ## Contribuição
 
