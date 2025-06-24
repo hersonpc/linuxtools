@@ -336,8 +336,6 @@ def stop_container_interactive(container_id, container_name):
             choices,
             title=f"Parar container {container_name} ({container_id[:12]})?",
             menu_cursor="=> ",
-            menu_cursor_style=("red", "bold"),
-            menu_highlight_style=("red",),
             cycle_cursor=True,
             clear_screen=False
         )
@@ -408,8 +406,6 @@ def logs_interactive_mode():
             choices,
             title="Selecione um container para logs:",
             menu_cursor="=> ",
-            menu_cursor_style=("green", "bold"),
-            menu_highlight_style=("green",),
             cycle_cursor=True,
             clear_screen=False,
             show_search_hint=True
@@ -467,8 +463,6 @@ def ports_interactive_mode():
                 choices,
                 title="Selecione um container:",
                 menu_cursor="=> ",
-                menu_cursor_style=("red", "bold"),
-                menu_highlight_style=("red",),
                 cycle_cursor=True,
                 clear_screen=False,
                 show_search_hint=True
@@ -520,8 +514,6 @@ def container_menu(container_info):
                 actions,
                 title="Escolha uma ação:",
                 menu_cursor="=> ",
-                menu_cursor_style=("blue", "bold"),
-                menu_highlight_style=("blue",),
                 cycle_cursor=True,
                 clear_screen=False
             )
