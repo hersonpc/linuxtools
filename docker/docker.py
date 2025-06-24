@@ -253,9 +253,6 @@ def watch_containers():
 def get_container_details(container_id):
     """Get detailed information about a container"""
     try:
-        # Get container inspect data
-        inspect_output = run_command(f"docker inspect {container_id}")
-        
         # Get basic info with docker ps
         ps_output = run_command(
             f'docker ps --filter "id={container_id}" --format "{{{{.ID}}}}|{{{{.Names}}}}|{{{{.Image}}}}|{{{{.Status}}}}|{{{{.CreatedAt}}}}|{{{{.Ports}}}}"'
@@ -277,17 +274,23 @@ def get_container_details(container_id):
             'ports': parts[5] if len(parts) > 5 else "None"
         }
         
-        # Get network info
+        # Get network info safely
         network_output = run_command(
-            f'docker inspect {container_id} --format "{{{{range .NetworkSettings.Networks}}}}{{{{.NetworkMode}}}} {{{{.IPAddress}}}} {{{{end}}}}"'
+            f'docker inspect {container_id} --format "{{{{range .NetworkSettings.Networks}}}}{{{{.IPAddress}}}}{{{{end}}}}"'
         )
         details['networks'] = network_output.strip() if network_output else "Unknown"
         
-        # Get mounts/volumes
+        # Get mounts/volumes safely
         mounts_output = run_command(
             f'docker inspect {container_id} --format "{{{{range .Mounts}}}}{{{{.Source}}}}:{{{{.Destination}}}} {{{{end}}}}"'
         )
         details['mounts'] = mounts_output.strip() if mounts_output else "None"
+        
+        # Get additional info safely
+        restart_policy = run_command(
+            f'docker inspect {container_id} --format "{{{{.HostConfig.RestartPolicy.Name}}}}"'
+        )
+        details['restart_policy'] = restart_policy.strip() if restart_policy else "none"
         
         return details
         
@@ -564,6 +567,7 @@ def show_container_details_full(container_id):
     console.print(f"[cyan]Portas:[/cyan] {details['ports']}")
     console.print(f"[cyan]Redes:[/cyan] {details['networks']}")
     console.print(f"[cyan]Volumes:[/cyan] {details['mounts']}")
+    console.print(f"[cyan]Restart Policy:[/cyan] {details['restart_policy']}")
     
     console.print("\n[dim]Pressione Enter para continuar...[/dim]")
     input()
