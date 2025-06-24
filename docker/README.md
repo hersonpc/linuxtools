@@ -23,6 +23,6 @@ Suite de scripts que oferece interface amigável para gerenciar containers, imag
 ./docker.sh watch    # Monitora containers continuamente
 ```
 
-## 🤝 Contribuição
+## Contribuição
 
 Este projeto faz parte da suite linuxtools. Contribuições são bem-vindas via pull requests.
