@@ -1,6 +1,6 @@
 # \!/usr/bin/env python3
 # /// script
-# dependencies = ["rich"]
+# dependencies = ["rich", "simple-term-menu"]
 # ///
 
 import re
@@ -12,6 +12,7 @@ from datetime import datetime
 from rich.console import Console
 from rich.live import Live
 from rich.table import Table
+from simple_term_menu import TerminalMenu
 
 console = Console()
 
@@ -326,20 +327,34 @@ def show_container_logs(container_id):
 
 
 def stop_container_interactive(container_id, container_name):
-    """Stop container with confirmation using gum"""
+    """Stop container with confirmation using simple-term-menu"""
     try:
-        # Use gum confirm for confirmation
-        confirm_cmd = f'gum confirm "Parar container {container_name} ({container_id[:12]})?"'
-        result = subprocess.run(confirm_cmd, shell=True)
+        # Use simple-term-menu for confirmation
+        choices = ["Sim, parar container", "Cancelar"]
         
-        if result.returncode == 0:  # User confirmed
+        terminal_menu = TerminalMenu(
+            choices,
+            title=f"Parar container {container_name} ({container_id[:12]})?",
+            menu_cursor="=> ",
+            menu_cursor_style=("fg_red", "bold"),
+            menu_highlight_style=("bg_red", "fg_white"),
+            cycle_cursor=True,
+            clear_screen=False
+        )
+        
+        menu_entry_index = terminal_menu.show()
+        
+        # Handle cancellation (Esc or Ctrl+C) or "Cancelar" selection
+        if menu_entry_index is None or menu_entry_index == 1:
+            console.print("[blue]Operação cancelada[/blue]")
+            return False
+        
+        # User confirmed (index 0)
+        if menu_entry_index == 0:
             console.print(f"[yellow]Parando container {container_name}...[/yellow]")
             stop_output = run_command(f"docker stop {container_id}")
             console.print(f"[green]Container {container_name} parado com sucesso[/green]")
             return True
-        else:
-            console.print("[blue]Operação cancelada[/blue]")
-            return False
             
     except Exception as e:
         console.print(f"[red]Erro ao parar container: {e}[/red]")
@@ -377,7 +392,7 @@ def logs_interactive_mode():
         console.print(table)
         console.print()
         
-        # Create choices for gum
+        # Create choices for simple-term-menu
         choices = []
         for container in containers:
             choice = f"{container['name']} ({container['id'][:12]}) - {container['image']}"
@@ -385,29 +400,31 @@ def logs_interactive_mode():
         
         choices.append("Voltar ao menu principal")
         
-        # Use gum choose to select container
-        choices_str = '\n'.join(f'"{choice}"' for choice in choices)
-        gum_cmd = f'echo -e "{choices_str}" | gum choose'
+        # Use simple-term-menu for selection
+        terminal_menu = TerminalMenu(
+            choices,
+            title="Selecione um container para logs:",
+            menu_cursor="=> ",
+            menu_cursor_style=("fg_green", "bold"),
+            menu_highlight_style=("bg_green", "fg_black"),
+            cycle_cursor=True,
+            clear_screen=False
+        )
         
-        result = subprocess.run(gum_cmd, shell=True, capture_output=True, text=True)
+        menu_entry_index = terminal_menu.show()
         
-        if result.returncode != 0:
+        # Handle cancellation (Esc or Ctrl+C)
+        if menu_entry_index is None:
             return
             
-        selected = result.stdout.strip()
+        selected_choice = choices[menu_entry_index]
         
-        if selected == "Voltar ao menu principal" or not selected:
+        if selected_choice == "Voltar ao menu principal":
             return
         
-        # Find selected container
-        selected_container = None
-        for container in containers:
-            choice = f"{container['name']} ({container['id'][:12]}) - {container['image']}"
-            if choice == selected:
-                selected_container = container
-                break
-        
-        if selected_container:
+        # Find selected container by index
+        if menu_entry_index < len(containers):
+            selected_container = containers[menu_entry_index]
             show_container_logs(selected_container['id'])
             
     except KeyboardInterrupt:
@@ -431,41 +448,41 @@ def ports_interactive_mode():
             console.print(ports_table)
             console.print()
             
-            # Create choices for gum
+            # Create choices for simple-term-menu
             choices = []
             for mapping in port_mappings:
-                choice = f":{mapping['host_port']} -> {mapping['container_name']} ({mapping['image']})"
+                choice = f":{mapping['ports_display']} -> {mapping['container_name']} ({mapping['container_id']})"
                 choices.append(choice)
             
             choices.append("Voltar ao menu principal")
             
-            # Use gum choose to select container
-            choices_str = '\n'.join(f'"{choice}"' for choice in choices)
-            gum_cmd = f'echo -e "{choices_str}" | gum choose'
+            # Use simple-term-menu for selection
+            terminal_menu = TerminalMenu(
+                choices,
+                title="Selecione um container:",
+                menu_cursor="=> ",
+                menu_cursor_style=("fg_red", "bold"),
+                menu_highlight_style=("bg_red", "fg_yellow"),
+                cycle_cursor=True,
+                clear_screen=False
+            )
             
-            result = subprocess.run(gum_cmd, shell=True, capture_output=True, text=True)
+            menu_entry_index = terminal_menu.show()
             
-            if result.returncode != 0:
+            # Handle cancellation (Esc or Ctrl+C)
+            if menu_entry_index is None:
                 break
                 
-            selected = result.stdout.strip()
+            selected_choice = choices[menu_entry_index]
             
-            if selected == "Voltar ao menu principal" or not selected:
+            if selected_choice == "Voltar ao menu principal":
                 break
             
-            # Find selected container
-            selected_container = None
-            for mapping in port_mappings:
-                choice = f":{mapping['host_port']} -> {mapping['container_name']} ({mapping['image']})"
-                if choice == selected:
-                    selected_container = mapping
-                    break
-            
-            if not selected_container:
-                continue
-            
-            # Container actions menu
-            container_menu(selected_container)
+            # Find selected container by index
+            if menu_entry_index < len(port_mappings):
+                selected_container = port_mappings[menu_entry_index]
+                # Container actions menu
+                container_menu(selected_container)
             
     except KeyboardInterrupt:
         console.print("\n[yellow]Modo interativo cancelado[/yellow]")
@@ -490,15 +507,24 @@ def container_menu(container_info):
                 "Voltar à lista de portas"
             ]
             
-            actions_str = '\n'.join(f'"{action}"' for action in actions)
-            gum_cmd = f'echo -e "{actions_str}" | gum choose'
+            # Use simple-term-menu for container actions
+            terminal_menu = TerminalMenu(
+                actions,
+                title="Escolha uma ação:",
+                menu_cursor="=> ",
+                menu_cursor_style=("fg_blue", "bold"),
+                menu_highlight_style=("bg_blue", "fg_white"),
+                cycle_cursor=True,
+                clear_screen=False
+            )
             
-            result = subprocess.run(gum_cmd, shell=True, capture_output=True, text=True)
+            menu_entry_index = terminal_menu.show()
             
-            if result.returncode != 0:
+            # Handle cancellation (Esc or Ctrl+C)
+            if menu_entry_index is None:
                 break
                 
-            selected_action = result.stdout.strip()
+            selected_action = actions[menu_entry_index]
             
             if selected_action == "Ver detalhes completos":
                 show_container_details_full(container_id)
@@ -512,7 +538,7 @@ def container_menu(container_info):
                     console.print("[green]Voltando ao menu principal...[/green]")
                     return  # Return to main menu since container is stopped
                     
-            elif selected_action == "Voltar à lista de portas" or not selected_action:
+            elif selected_action == "Voltar à lista de portas":
                 break
                 
     except KeyboardInterrupt:
