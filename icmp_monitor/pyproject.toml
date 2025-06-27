@@ -1,0 +1,11 @@
+[project]
+name = "icmp-monitor"
+version = "0.1.0"
+description = "Advanced ICMP monitoring tool with statistical analysis"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "psutil>=7.0.0",
+    "requests>=2.32.4",
+    "rich>=14.0.0",
+]

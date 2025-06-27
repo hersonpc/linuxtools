@@ -1,0 +1,42 @@
+[
+  {
+    "id": 1,
+    "addr": "1.1.1.1",
+    "desc": "Cloudflare DNS Primary"
+  },
+  {
+    "id": 2,
+    "addr": "1.0.0.1",
+    "desc": "Cloudflare DNS Secondary"
+  },
+  {
+    "id": 3,
+    "addr": "8.8.8.8",
+    "desc": "Google DNS Primary"
+  },
+  {
+    "id": 4,
+    "addr": "8.8.4.4",
+    "desc": "Google DNS Secondary"
+  },
+  {
+    "id": 5,
+    "addr": "google.com",
+    "desc": "Google"
+  },
+  {
+    "id": 6,
+    "addr": "github.com",
+    "desc": "GitHub"
+  },
+  {
+    "id": 7,
+    "addr": "hdt-psau.hersonpc.com",
+    "desc": "HDT Dashboard - PSAU"
+  },
+  {
+    "id": 8,
+    "addr": "hdt-psi.hersonpc.com",
+    "desc": "HDT Dashboard - Psicologia"
+  }
+]
