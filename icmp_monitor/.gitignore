@@ -1,0 +1,120 @@
+# ===============================
+# Bytecode e arquivos temporários do Python
+# ===============================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ===============================
+# Ambientes virtuais locais
+# Compatível com práticas comuns, mesmo que 'uv' não os crie
+# ===============================
+.venv/
+venv/
+env/
+ENV/
+
+# ===============================
+# Arquivos de configuração sensíveis ou locais
+# ===============================
+*.env
+.env.*
+*.ini
+*.cfg
+*.db
+*.sqlite
+*.sqlite3
+*.parquet
+*.csv
+
+# ===============================
+# Arquivos de log e dados transitórios
+# ===============================
+*.log
+*.pid
+*.bak
+*.bkp
+*.swp
+*.tmp
+*.tar
+*.gz
+*.zip
+**/bkp/
+
+# ===============================
+# Diretórios de logs e arquivos temporários que devem existir, mas não versionar conteúdo
+# ===============================
+logs/
+!logs/.gitkeep
+tmp/
+!tmp/.gitkeep
+
+# ===============================
+# Caches de ferramentas Python
+# ===============================
+.cache/
+.pre-commit-cache/
+.pytest_cache/
+.mypy_cache/
+.pytype/
+.pyre/
+.dmypy.json
+
+# ===============================
+# Relatórios de cobertura e teste
+# ===============================
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# ===============================
+# Artefatos de build / distribuição
+# ===============================
+build/
+dist/
+*.egg-info/
+.eggs/
+*.manifest
+*.spec
+
+# ===============================
+# Verificação local do Python (ex: pyenv, asdf)
+# ===============================
+.python-version
+
+# ===============================
+# Jupyter notebooks
+# (não utilizados neste projeto, mas checkpoints podem aparecer)
+# ===============================
+.ipynb_checkpoints/
+
+# ===============================
+# Arquivos temporários do sistema
+# ===============================
+*.DS_Store
+Thumbs.db
+
+# ===============================
+# Diretório de dados (mantém estrutura com .gitkeep)
+# ===============================
+data/
+!data/.gitkeep
+
+# ===============================
+# IDEs
+# VSCode mantido no controle de versão
+# ===============================
+# .vscode/   <-- intencionalmente incluído no versionamento
+.idea/        # Ignorar configs do PyCharm
+
+# ===============================
+# Ferramentas de dependência
+# Inclui somente locks não utilizados (Poetry, Pipenv)
+# ===============================
+Pipfile.lock
+poetry.lock
+poetry.toml
+
+*.sqlite*
+.claude/
