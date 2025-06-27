@@ -23,7 +23,10 @@ def run_command(cmd):
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         if result.returncode != 0:
             # Se comando falhou, pode ser problema de Docker
-            if "docker" in cmd and "Cannot connect to the Docker daemon" in result.stderr:
+            if (
+                "docker" in cmd
+                and "Cannot connect to the Docker daemon" in result.stderr
+            ):
                 console.print("[red]Docker não está acessível[/red]")
                 console.print("[yellow]Verifique se:[/yellow]")
                 console.print("• Docker está instalado e rodando")
@@ -56,46 +59,48 @@ def parse_ports(port_string):
     ports_dict = {}
     if not port_string or port_string.strip() == "":
         return []
-    
+
     # Split multiple port mappings
     port_parts = port_string.split(", ")
-    
+
     for part in port_parts:
         part = part.strip()
         # Match patterns like: 0.0.0.0:8080->80/tcp or [::]:8080->80/tcp
-        match = re.search(r'(?:0\.0\.0\.0|::|\[::\]):(\d+)->', part)
+        match = re.search(r"(?:0\.0\.0\.0|::|\[::\]):(\d+)->", part)
         if match:
             host_port = int(match.group(1))
             # Extract container port and protocol
-            container_match = re.search(r'->(\d+)/(\w+)', part)
+            container_match = re.search(r"->(\d+)/(\w+)", part)
             container_port = container_match.group(1) if container_match else "unknown"
             protocol = container_match.group(2) if container_match else "tcp"
-            
+
             # Create unique key for host_port + container_port combination
             port_key = f"{host_port}->{container_port}"
-            
+
             if port_key not in ports_dict:
                 ports_dict[port_key] = {
-                    'host_port': host_port,
-                    'container_port': container_port,
-                    'protocols': set(),
-                    'mapping': part
+                    "host_port": host_port,
+                    "container_port": container_port,
+                    "protocols": set(),
+                    "mapping": part,
                 }
-            
-            ports_dict[port_key]['protocols'].add(protocol)
-    
+
+            ports_dict[port_key]["protocols"].add(protocol)
+
     # Convert to list and sort protocols
     ports = []
     for port_info in ports_dict.values():
-        protocols_list = sorted(list(port_info['protocols']))
-        ports.append({
-            'host_port': port_info['host_port'],
-            'container_port': port_info['container_port'],
-            'protocol': ', '.join(protocols_list),
-            'mapping': port_info['mapping']
-        })
-    
-    return sorted(ports, key=lambda x: x['host_port'])
+        protocols_list = sorted(list(port_info["protocols"]))
+        ports.append(
+            {
+                "host_port": port_info["host_port"],
+                "container_port": port_info["container_port"],
+                "protocol": ", ".join(protocols_list),
+                "mapping": port_info["mapping"],
+            }
+        )
+
+    return sorted(ports, key=lambda x: x["host_port"])
 
 
 def create_ps_table():
@@ -128,9 +133,7 @@ def create_ps_table():
 
 def create_ports_table():
     """Create table for exposed ports"""
-    table = Table(
-        title="Exposed Ports", show_header=True, header_style="bold magenta"
-    )
+    table = Table(title="Exposed Ports", show_header=True, header_style="bold magenta")
     table.add_column("PORTS", style="yellow", no_wrap=True)
     table.add_column("PROTOCOL", style="blue", no_wrap=True)
     table.add_column("CONTAINER ID", style="cyan", no_wrap=True)
@@ -144,7 +147,7 @@ def create_ports_table():
 
     # Collect all port mappings
     port_mappings = []
-    
+
     for line in output.split("\n"):
         if line.strip():
             parts = line.split("|")
@@ -154,41 +157,45 @@ def create_ports_table():
                 image = parts[2]
                 status = parts[3]
                 ports_str = parts[4]
-                
+
                 # Parse ports for this container
                 ports = parse_ports(ports_str)
-                
+
                 for port_info in ports:
                     # Format ports column: show host port, add container port in parentheses if different
-                    if str(port_info['host_port']) == port_info['container_port']:
-                        ports_display = str(port_info['host_port'])
+                    if str(port_info["host_port"]) == port_info["container_port"]:
+                        ports_display = str(port_info["host_port"])
                     else:
-                        ports_display = f"{port_info['host_port']} ({port_info['container_port']})"
-                    
-                    port_mappings.append({
-                        'host_port': port_info['host_port'],
-                        'ports_display': ports_display,
-                        'protocol': port_info['protocol'],
-                        'container_id': container_id[:12],
-                        'container_name': container_name,
-                        'image': image,
-                        'status': status
-                    })
-    
+                        ports_display = (
+                            f"{port_info['host_port']} ({port_info['container_port']})"
+                        )
+
+                    port_mappings.append(
+                        {
+                            "host_port": port_info["host_port"],
+                            "ports_display": ports_display,
+                            "protocol": port_info["protocol"],
+                            "container_id": container_id[:12],
+                            "container_name": container_name,
+                            "image": image,
+                            "status": status,
+                        }
+                    )
+
     # Sort by host port
-    port_mappings.sort(key=lambda x: x['host_port'])
-    
+    port_mappings.sort(key=lambda x: x["host_port"])
+
     # Add rows to table
     for mapping in port_mappings:
         table.add_row(
-            mapping['ports_display'],
-            mapping['protocol'],
-            mapping['container_id'],
-            mapping['container_name'],
-            mapping['image'],
-            mapping['status']
+            mapping["ports_display"],
+            mapping["protocol"],
+            mapping["container_id"],
+            mapping["container_name"],
+            mapping["image"],
+            mapping["status"],
         )
-    
+
     return table, port_mappings
 
 
@@ -257,43 +264,43 @@ def get_container_details(container_id):
         ps_output = run_command(
             f'docker ps --filter "id={container_id}" --format "{{{{.ID}}}}|{{{{.Names}}}}|{{{{.Image}}}}|{{{{.Status}}}}|{{{{.CreatedAt}}}}|{{{{.Ports}}}}"'
         )
-        
+
         if not ps_output:
             return None
-            
+
         parts = ps_output.split("|")
         if len(parts) < 5:
             return None
-            
+
         details = {
-            'id': parts[0],
-            'name': parts[1],
-            'image': parts[2],
-            'status': parts[3],
-            'created': format_date(parts[4]) if len(parts) > 4 else "Unknown",
-            'ports': parts[5] if len(parts) > 5 else "None"
+            "id": parts[0],
+            "name": parts[1],
+            "image": parts[2],
+            "status": parts[3],
+            "created": format_date(parts[4]) if len(parts) > 4 else "Unknown",
+            "ports": parts[5] if len(parts) > 5 else "None",
         }
-        
+
         # Get network info safely
         network_output = run_command(
             f'docker inspect {container_id} --format "{{{{range .NetworkSettings.Networks}}}}{{{{.IPAddress}}}}{{{{end}}}}"'
         )
-        details['networks'] = network_output.strip() if network_output else "Unknown"
-        
+        details["networks"] = network_output.strip() if network_output else "Unknown"
+
         # Get mounts/volumes safely
         mounts_output = run_command(
             f'docker inspect {container_id} --format "{{{{range .Mounts}}}}{{{{.Source}}}}:{{{{.Destination}}}} {{{{end}}}}"'
         )
-        details['mounts'] = mounts_output.strip() if mounts_output else "None"
-        
+        details["mounts"] = mounts_output.strip() if mounts_output else "None"
+
         # Get additional info safely
         restart_policy = run_command(
             f'docker inspect {container_id} --format "{{{{.HostConfig.RestartPolicy.Name}}}}"'
         )
-        details['restart_policy'] = restart_policy.strip() if restart_policy else "none"
-        
+        details["restart_policy"] = restart_policy.strip() if restart_policy else "none"
+
         return details
-        
+
     except Exception as e:
         console.print(f"[red]Erro ao obter detalhes: {e}[/red]")
         return None
@@ -304,7 +311,7 @@ def show_container_logs(container_id):
     try:
         console.print(f"[green]Logs do container {container_id[:12]}...[/green]")
         console.print("[dim]Pressione Ctrl+C para parar[/dim]\n")
-        
+
         # Use subprocess with real-time output
         process = subprocess.Popen(
             ["docker", "logs", "--tail", "50", "--follow", container_id],
@@ -312,11 +319,11 @@ def show_container_logs(container_id):
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
-            universal_newlines=True
+            universal_newlines=True,
         )
-        
+
         try:
-            for line in iter(process.stdout.readline, ''):
+            for line in iter(process.stdout.readline, ""):
                 if line:
                     print(line.rstrip())
         except KeyboardInterrupt:
@@ -324,7 +331,7 @@ def show_container_logs(container_id):
             console.print("\n[yellow]Logs interrompidos[/yellow]")
         finally:
             process.terminate()
-            
+
     except Exception as e:
         console.print(f"[red]Erro ao exibir logs: {e}[/red]")
 
@@ -334,29 +341,31 @@ def stop_container_interactive(container_id, container_name):
     try:
         # Use simple-term-menu for confirmation
         choices = ["Sim, parar container", "Cancelar"]
-        
+
         terminal_menu = TerminalMenu(
             choices,
             title=f"Parar container {container_name} ({container_id[:12]})?",
             menu_cursor="=> ",
             cycle_cursor=True,
-            clear_screen=False
+            clear_screen=False,
         )
-        
+
         menu_entry_index = terminal_menu.show()
-        
+
         # Handle cancellation (Esc or Ctrl+C) or "Cancelar" selection
         if menu_entry_index is None or menu_entry_index == 1:
             console.print("[blue]Operação cancelada[/blue]")
             return False
-        
+
         # User confirmed (index 0)
         if menu_entry_index == 0:
             console.print(f"[yellow]Parando container {container_name}...[/yellow]")
             stop_output = run_command(f"docker stop {container_id}")
-            console.print(f"[green]Container {container_name} parado com sucesso[/green]")
+            console.print(
+                f"[green]Container {container_name} parado com sucesso[/green]"
+            )
             return True
-            
+
     except Exception as e:
         console.print(f"[red]Erro ao parar container: {e}[/red]")
         return False
@@ -367,43 +376,53 @@ def logs_interactive_mode():
     try:
         # Get containers table
         table = create_ps_table()
-        
+
         # Get container data
         output = run_command(
             'docker ps --format "{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}"'
         )
-        
+
         containers = []
         for line in output.split("\n"):
             if line.strip():
                 parts = line.split("|")
                 if len(parts) >= 4:
-                    containers.append({
-                        'id': parts[0],
-                        'name': parts[1],
-                        'image': parts[2],
-                        'status': parts[3]
-                    })
-        
+                    containers.append(
+                        {
+                            "id": parts[0],
+                            "name": parts[1],
+                            "image": parts[2],
+                            "status": parts[3],
+                        }
+                    )
+
         if not containers:
             console.print("[yellow]Nenhum container em execução encontrado[/yellow]")
             return
-        
+
         # Show containers table
         console.print(table)
         console.print()
-        
+
         # Create choices for simple-term-menu (shorter format)
         choices = []
         for container in containers:
             # Shorter format: Name (ID) - Image
-            container_name_short = container['name'][:20] + "..." if len(container['name']) > 20 else container['name']
-            image_short = container['image'][:30] + "..." if len(container['image']) > 30 else container['image']
+            container_name_short = (
+                container["name"][:20] + "..."
+                if len(container["name"]) > 20
+                else container["name"]
+            )
+            image_short = (
+                container["image"][:30] + "..."
+                if len(container["image"]) > 30
+                else container["image"]
+            )
             choice = f"{container_name_short} ({container['id'][:12]}) - {image_short}"
             choices.append(choice)
-        
+
         choices.append("Voltar ao menu principal")
-        
+
         # Use simple-term-menu for selection
         terminal_menu = TerminalMenu(
             choices,
@@ -411,25 +430,25 @@ def logs_interactive_mode():
             menu_cursor="=> ",
             cycle_cursor=True,
             clear_screen=False,
-            show_search_hint=True
+            show_search_hint=True,
         )
-        
+
         menu_entry_index = terminal_menu.show()
-        
+
         # Handle cancellation (Esc or Ctrl+C)
         if menu_entry_index is None:
             return
-            
+
         selected_choice = choices[menu_entry_index]
-        
+
         if selected_choice == "Voltar ao menu principal":
             return
-        
+
         # Find selected container by index
         if menu_entry_index < len(containers):
             selected_container = containers[menu_entry_index]
-            show_container_logs(selected_container['id'])
-            
+            show_container_logs(selected_container["id"])
+
     except KeyboardInterrupt:
         console.print("\n[yellow]Seleção de logs cancelada[/yellow]")
     except Exception as e:
@@ -442,25 +461,29 @@ def ports_interactive_mode():
         while True:
             # Get ports table and data
             ports_table, port_mappings = create_ports_table()
-            
+
             if not port_mappings:
                 console.print("[yellow]Nenhuma porta exposta encontrada[/yellow]")
                 return
-            
+
             # Show ports table
             console.print(ports_table)
             console.print()
-            
+
             # Create choices for simple-term-menu (shorter format)
             choices = []
             for mapping in port_mappings:
                 # Shorter format: Port -> Container_name (ID)
-                container_name_short = mapping['container_name'][:25] + "..." if len(mapping['container_name']) > 25 else mapping['container_name']
+                container_name_short = (
+                    mapping["container_name"][:25] + "..."
+                    if len(mapping["container_name"]) > 25
+                    else mapping["container_name"]
+                )
                 choice = f":{mapping['ports_display']} -> {container_name_short} ({mapping['container_id']})"
                 choices.append(choice)
-            
+
             choices.append("Voltar ao menu principal")
-            
+
             # Use simple-term-menu for selection
             terminal_menu = TerminalMenu(
                 choices,
@@ -468,27 +491,29 @@ def ports_interactive_mode():
                 menu_cursor="=> ",
                 cycle_cursor=True,
                 clear_screen=False,
-                show_search_hint=True
+                show_search_hint=True,
             )
-            
+
             menu_entry_index = terminal_menu.show()
-            
+
             # Handle cancellation (Esc or Ctrl+C)
             if menu_entry_index is None:
                 break
-                
+
             selected_choice = choices[menu_entry_index]
-            
+
             if selected_choice == "Voltar ao menu principal":
                 break
-            
+
             # Find selected container by index
             if menu_entry_index < len(port_mappings):
                 selected_container = port_mappings[menu_entry_index]
-                console.print(f"[green]Container selecionado: {selected_container['container_name']}[/green]")
+                console.print(
+                    f"[green]Container selecionado: {selected_container['container_name']}[/green]"
+                )
                 # Container actions menu
                 container_menu(selected_container)
-            
+
     except KeyboardInterrupt:
         console.print("\n[yellow]Modo interativo cancelado[/yellow]")
     except Exception as e:
@@ -498,52 +523,54 @@ def ports_interactive_mode():
 def container_menu(container_info):
     """Show menu for container actions"""
     try:
-        container_id = container_info['container_id']
-        container_name = container_info['container_name']
-        
+        container_id = container_info["container_id"]
+        container_name = container_info["container_name"]
+
         while True:
-            console.print(f"\n[bold cyan]Container: {container_name} ({container_id})[/bold cyan]")
-            
+            console.print(
+                f"\n[bold cyan]Container: {container_name} ({container_id})[/bold cyan]"
+            )
+
             # Action choices
             actions = [
                 "Ver detalhes completos",
                 "Acompanhar logs",
                 "Parar container",
-                "Voltar à lista de portas"
+                "Voltar à lista de portas",
             ]
-            
+
             # Use simple-term-menu for container actions
             terminal_menu = TerminalMenu(
                 actions,
                 title="Escolha uma ação:",
                 menu_cursor="=> ",
                 cycle_cursor=True,
-                clear_screen=False
+                clear_screen=False,
             )
-            
+
             menu_entry_index = terminal_menu.show()
-            
+
             # Handle cancellation (Esc or Ctrl+C)
             if menu_entry_index is None:
                 break
-                
+
             selected_action = actions[menu_entry_index]
-            
+
             if selected_action == "Ver detalhes completos":
                 show_container_details_full(container_id)
-                
+
             elif selected_action == "Acompanhar logs":
                 show_container_logs(container_id)
-                
+
             elif selected_action == "Parar container":
                 stopped = stop_container_interactive(container_id, container_name)
                 if stopped:
                     console.print("[green]Voltando ao menu principal...[/green]")
                     return  # Return to main menu since container is stopped
-                    
+
             elif selected_action == "Voltar à lista de portas":
                 break
-                
+
     except KeyboardInterrupt:
         console.print("\n[yellow]Menu do container cancelado[/yellow]")
     except Exception as e:
@@ -553,12 +580,12 @@ def container_menu(container_info):
 def show_container_details_full(container_id):
     """Display full container details"""
     details = get_container_details(container_id)
-    
+
     if not details:
         console.print("[red]Não foi possível obter detalhes do container[/red]")
         return
-    
-    console.print(f"\n[bold green]Detalhes do Container[/bold green]")
+
+    console.print("\n[bold green]Detalhes do Container[/bold green]")
     console.print(f"[cyan]ID:[/cyan] {details['id']}")
     console.print(f"[cyan]Nome:[/cyan] {details['name']}")
     console.print(f"[cyan]Imagem:[/cyan] {details['image']}")
@@ -568,7 +595,7 @@ def show_container_details_full(container_id):
     console.print(f"[cyan]Redes:[/cyan] {details['networks']}")
     console.print(f"[cyan]Volumes:[/cyan] {details['mounts']}")
     console.print(f"[cyan]Restart Policy:[/cyan] {details['restart_policy']}")
-    
+
     console.print("\n[dim]Pressione Enter para continuar...[/dim]")
     input()
 
@@ -581,17 +608,24 @@ def check_docker():
             console.print("[red]Docker não está acessível[/red]")
             if "Cannot connect to the Docker daemon" in result.stderr:
                 console.print("[yellow]Soluções:[/yellow]")
-                console.print("• Instalar Docker: curl -fsSL https://get.docker.com | sh")
+                console.print(
+                    "• Instalar Docker: curl -fsSL https://get.docker.com | sh"
+                )
                 console.print("• Iniciar serviço: sudo systemctl start docker")
-                console.print("• Adicionar usuário ao grupo: sudo usermod -aG docker $USER")
+                console.print(
+                    "• Adicionar usuário ao grupo: sudo usermod -aG docker $USER"
+                )
                 console.print("• Fazer logout/login após adicionar ao grupo")
             else:
                 console.print(f"[red]{result.stderr.strip()}[/red]")
             sys.exit(1)
     except FileNotFoundError:
         console.print("[red]Docker não está instalado[/red]")
-        console.print("[yellow]Instale com:[/yellow] curl -fsSL https://get.docker.com | sh")
+        console.print(
+            "[yellow]Instale com:[/yellow] curl -fsSL https://get.docker.com | sh"
+        )
         sys.exit(1)
+
 
 def show_help():
     """Show help message"""

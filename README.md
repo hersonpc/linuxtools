@@ -7,6 +7,9 @@ Ferramentas modernas para servidores Ubuntu/Linux com interfaces ricas e interat
 ### Docker Manager
 Gerenciamento de containers Docker com interface rica.
 
+### ICMP Monitor
+Monitor avançado de conectividade ICMP com análise estatística e resolução DNS.
+
 ## Instalação
 
 ```bash
@@ -19,4 +22,6 @@ sudo ./install.sh
 docker.sh          # Menu interativo
 docker.sh ps        # Lista containers
 docker.sh watch     # Monitor contínuo
+
+cd icmp_monitor && make run  # Monitor ICMP
 ```
